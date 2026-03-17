@@ -1,0 +1,94 @@
+language: ko-KR
+
+early_access: true
+enable_free_tier: true
+reviews:
+  profile: chill
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_placeholder: '@coderabbitai 요약'
+  auto_title_placeholder: '@coderabbitai'
+  poem: false # 테스트 코드의 명확성을 위해 false 권장 (선택사항)
+  review_status: true
+  collapse_walkthrough: false
+  path_filters:
+    - "!**/swagger.json"
+    - "!**/README.md"
+    - "!**/target/**" # Java 빌드 결과물 제외
+    - "!**/*.class"
+  path_instructions:
+    - path: "**/*.sql"
+      instructions: >
+        팀 컨벤션에 따라 FK 제약 조건을 명시하지 마세요. 코드 리뷰 시 FK 추가 제안을 금지합니다.
+        PK 또는 FK로 사용되는 컬럼(이름이 "id"이거나 "_id"로 끝나는 경우)은 반드시 "bigint" 타입이어야 합니다.
+        "bigint"가 아닌 다른 타입으로 작성된 경우 🚨🚨🚨 이모지와 함께 높은 심각도로 경고하세요.
+
+    - path: "**/*Controller*.java" # TS에서 Java로 변경
+      instructions: >
+        Spring Boot 컨트롤러를 다음 가이드라인에 따라 리뷰하세요.
+
+        ### API 설계 원칙 (RMM Level 2 이상)
+        - 적절한 HTTP Method(GET, POST, PUT, PATCH, DELETE)를 사용했는지 확인하세요.
+        - URI는 명사 위주, 복수형을 사용하세요 (예: /api/v1/products).
+        - 케밥 케이스(kebab-case) URI 경로와 카멜 케이스(camelCase) 파라미터 형식을 준수하세요.
+        - 컨트롤러 메서드는 ResponseEntity를 사용하여 명확한 상태 코드를 반환해야 합니다.
+
+        ### 구현 세부사항
+        - 비즈니스 로직이 컨트롤러에 포함되어 있다면 Service 레이어로 이동하도록 권고하세요.
+        - @Valid를 통한 입력 값 검증이 누락되지 않았는지 확인하세요.
+
+    - path: "**/test/**/*Test.java" # RestAssured 테스트 전용 지침 추가
+      instructions: >
+        RestAssured를 사용한 테스트 코드를 다음 기준에 따라 리뷰하세요.
+
+        ### RestAssured 테스트 컨벤션
+        - **Given/When/Then** 구조를 명확히 분리하여 가독성을 높였는지 확인하세요.
+        - `given()`: 요청 명세(Header, Query Param, Body 등) 설정
+        - `when()`: HTTP Method 및 Endpoint 호출
+        - `then()`: 상태 코드 및 응답 바디(JSON Path) 검증
+
+        ### 리뷰 포인트
+        - API 응답 상태 코드가 하드코딩되지 않고 `HttpStatus` 열거형이나 숫자(200, 201 등)로 명확히 검증되는지 확인하세요.
+        - `body("name", equalTo("item"))`과 같이 JSON 경로를 통한 필드 값 검증이 포함되었는지 확인하세요.
+        - 테스트 간 독립성이 보장되는지, `@LocalServerPort`를 사용하여 랜덤 포트 설정이 잘 되어있는지 체크하세요.
+        - 중복되는 API 요청 설정(Base URI, Port 등)은 `@BeforeEach`나 공통 클래스로 추출하도록 제안하세요.
+
+  abort_on_close: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    ignore_title_keywords: []
+    labels: []
+    drafts: false
+    base_branches: []
+  tools:
+    shellcheck:
+      enabled: true
+    ruff:
+      enabled: false # Python 도구 비활성화
+    markdownlint:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 90000
+    languagetool:
+      enabled: true
+      disabled_rules:
+        - EN_UNPAIRED_BRACKETS
+        - EN_UNPAIRED_QUOTES
+      disabled_categories:
+        - TYPOS
+        - TYPOGRAPHY
+        - CASING
+    biome:
+      enabled: false # JS/TS 도구 비활성화
+    hadolint:
+      enabled: true
+    pmd:
+      enabled: true
+    gitleaks:
+      enabled: true
+    checkov:
+      enabled: true
+    ast-grep:
+      essential_rules: true
