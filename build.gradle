@@ -70,6 +70,8 @@ dependencies {
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-mysql'
 	implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.0'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'site.ng-archive:ecom-common'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'io.r2dbc:r2dbc-h2'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -83,6 +85,5 @@ dependencies {
 	testImplementation 'io.rest-assured:spring-web-test-client'
 	testImplementation 'com.epages:restdocs-api-spec:0.17.1'
 	testImplementation 'com.epages:restdocs-api-spec-webtestclient:0.17.1'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
 }
 
