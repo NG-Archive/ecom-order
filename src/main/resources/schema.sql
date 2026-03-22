@@ -13,10 +13,5 @@ CREATE TABLE order_item (
     order_id bigint not null,
     product_id bigint not null,
     product_name varchar(255) not null,
-    product_price bigint not null,
-
-    constraint fk_order_item_order_id
-    foreign key (order_id)
-    references orders (id)
-    on delete cascade
+    product_price bigint not null
 );
