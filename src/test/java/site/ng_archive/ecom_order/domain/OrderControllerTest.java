@@ -3,6 +3,7 @@ package site.ng_archive.ecom_order.domain;
 import com.epages.restdocs.apispec.Schema;
 import com.epages.restdocs.apispec.SimpleType;
 import io.restassured.http.ContentType;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import reactor.core.publisher.Mono;
 import site.ng_archive.ecom_common.auth.UserContext;
 import site.ng_archive.ecom_common.auth.token.TokenUtil;
+import site.ng_archive.ecom_common.error.ErrorResponse;
 import site.ng_archive.ecom_order.config.AcceptedTest;
 import site.ng_archive.ecom_order.domain.dto.CreateOrderCommand;
 import site.ng_archive.ecom_order.domain.dto.MemberResponse;
@@ -72,6 +74,40 @@ public class OrderControllerTest extends AcceptedTest {
             .body("[0].statusName", notNullValue())
             .body("[0].createdDate", notNullValue())
             .log().all();
+    }
+
+    @Test
+    void 주문목록조회_탈퇴한회원오류() {
+        String token = createTestToken(TEST_MEMBER_ID, TEST_ROLE);
+        mockMemberRequester(TEST_MEMBER_ID, "WITHDRAWN");
+
+        ErrorResponse errorResponse = given()
+            .header("Authorization", "Bearer " + token)
+            .queryParam("offset", 0)
+            .queryParam("size", 10)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 목록 조회")
+                    .description("토큰에 포함된 회원 정보를 기준으로 해당 사용자의 주문 목록을 페이징으로 조회합니다.")
+                    .queryParameters(
+                        parameterWithName("offset").description("페이지 오프셋").type(SimpleType.INTEGER).defaultValue(0),
+                        parameterWithName("size").description("페이지 크기").type(SimpleType.INTEGER).defaultValue(10)
+                    )
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .get("/orders")
+            .then()
+            .status(HttpStatus.FORBIDDEN)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("member.status.invalid");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("유효하지 않은 회원 상태입니다.");
     }
 
     private String createTestToken(Long memberId, String role) {
