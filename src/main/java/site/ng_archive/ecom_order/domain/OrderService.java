@@ -21,7 +21,7 @@ public class OrderService {
     public Flux<OrderListResponse> readAllOrders(UserContext user, long offset, int size) {
         return memberRequester.getMember(user.id())
             .filter(member -> "NORMAL".equals(member.status()))
-            .switchIfEmpty(Mono.defer(() -> Mono.error(new EntityNotFoundException("member.notfound"))))
+            .switchIfEmpty(Mono.defer(() -> Mono.error(new EntityNotFoundException("member.status.invalid"))))
             .flatMapMany(member -> orderRepository.findByAll(offset, size, member.id()))
             .map(OrderListResponse::from);
     }
