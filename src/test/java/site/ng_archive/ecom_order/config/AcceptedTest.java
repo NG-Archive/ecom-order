@@ -41,7 +41,6 @@ public abstract class AcceptedTest {
 
     @BeforeEach
     void setUp(ApplicationContext applicationContext, RestDocumentationContextProvider provider) {
-
         this.webTestClient = WebTestClient.bindToApplicationContext(applicationContext)
                 .configureClient()
                 .filter(WebTestClientRestDocumentation.documentationConfiguration(provider))
