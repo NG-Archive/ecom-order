@@ -1,4 +1,4 @@
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
     id bigint not null auto_increment primary key,
     total_price bigint not null,
     status varchar(20) not null,
@@ -8,7 +8,7 @@ CREATE TABLE orders (
     updated_date datetime(6) not null default current_timestamp(6) on update current_timestamp(6)
 );
 
-CREATE TABLE order_item (
+CREATE TABLE IF NOT EXISTS order_item (
     id bigint not null auto_increment primary key,
     order_id bigint not null,
     product_id bigint not null,
