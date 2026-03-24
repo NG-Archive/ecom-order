@@ -6,6 +6,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import site.ng_archive.ecom_common.auth.UserContext;
 import site.ng_archive.ecom_common.auth.exception.ForbiddenException;
+import site.ng_archive.ecom_common.handler.EntityNotFoundException;
 import site.ng_archive.ecom_order.domain.dto.*;
 import site.ng_archive.ecom_order.domain.requester.MemberRequester;
 
@@ -29,17 +30,19 @@ public class OrderService {
 
     public Mono<OrderDetailResponse> readOrder(UserContext user, Long id) {
        return orderRepository.findById(id)
-            .filter(order -> user.id().equals(order.memberId()))
-            .switchIfEmpty(Mono.defer(() -> Mono.error(new ForbiddenException("auth.forbidden"))))
-            .flatMap(order -> {
-                Mono<List<OrderItemResponse>> orderItemsMono = orderItemRepository.findByOrderId(id)
-                    .map(OrderItemResponse::from)
-                    .collectList();
-                Mono<DeliveryInfoResponse> deliveryInfoMono = memberRequester.getDeliveryInfo(order.memberId(), order.deliveryId());
+           .switchIfEmpty(Mono.defer(() -> Mono.error(new EntityNotFoundException("order.notfound"))))
+           .filter(order -> user.id().equals(order.memberId()))
+           .switchIfEmpty(Mono.defer(() -> Mono.error(new ForbiddenException("auth.forbidden"))))
+           .flatMap(order -> {
+               Mono<List<OrderItemResponse>> orderItemsMono = orderItemRepository.findByOrderId(id)
+                   .switchIfEmpty(Flux.defer(() -> Flux.error(new EntityNotFoundException("orderitem.notfound"))))
+                   .map(OrderItemResponse::from)
+                   .collectList();
+               Mono<DeliveryInfoResponse> deliveryInfoMono = memberRequester.getDeliveryInfo(order.memberId(), order.deliveryId());
 
-                return Mono.zip(orderItemsMono, deliveryInfoMono, (orderItems, delivery) ->
-                    OrderDetailResponse.of(order, orderItems, delivery)
-                );
+               return Mono.zip(orderItemsMono, deliveryInfoMono, (orderItems, delivery) ->
+                   OrderDetailResponse.of(order, orderItems, delivery)
+               );
             });
     }
 
