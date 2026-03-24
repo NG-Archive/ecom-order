@@ -1,0 +1,15 @@
+FROM amazoncorretto:21
+
+ENV TZ=Asia/Seoul
+WORKDIR /app
+
+COPY build/libs/*-SNAPSHOT.jar app.jar
+
+ENTRYPOINT ["java", \
+"-Xms1g", \
+"-Xmx1g", \
+"-XX:+UseG1GC", \
+"-XX:MaxGCPauseMillis=200", \
+"-XX:+ParallelRefProcEnabled", \
+"-Dspring.profiles.active=prod", \
+"-jar", "app.jar"]

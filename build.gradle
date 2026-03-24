@@ -33,13 +33,19 @@ openapi3 {
 }
 
 tasks.register('copyOpenApiSpec', Copy) {
-	dependsOn 'openapi3'
+    dependsOn 'openapi3'
 
-	from "build/api-spec/openapi3.yaml"
-	into "static"
-	rename { String fileName -> fileName.replace("openapi3.yaml", "apispec.yaml") }
-	into "src/main/resources/static"
-	rename { String fileName -> fileName.replace("openapi3.yaml", "apispec.yaml") }
+    from "build/api-spec/openapi3.yaml"
+    into "build/resources/main/static"
+    rename { "apispec.yaml" }
+
+    doLast {
+        copy {
+            from "build/api-spec/openapi3.yaml"
+            into "src/main/resources/static"
+            rename { "apispec.yaml" }
+        }
+    }
 }
 
 repositories {
@@ -53,8 +59,11 @@ test {
 	jvmArgs "-XX:+EnableDynamicAgentLoading"
 	jvmArgs "-Xshare:off"
 }
-build.dependsOn 'openapi3'
-bootJar.dependsOn 'openapi3'
+
+build.dependsOn 'copyOpenApiSpec'
+bootJar.dependsOn 'copyOpenApiSpec'
+resolveMainClassName.dependsOn 'copyOpenApiSpec'
+jar.enabled false
 
 afterEvaluate {
 	tasks.named('openapi3') {
@@ -72,6 +81,10 @@ dependencies {
 	implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.0'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'site.ng-archive:ecom-common'
+    implementation 'io.asyncer:r2dbc-mysql:1.3.1'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    runtimeOnly 'com.mysql:mysql-connector-j'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'io.r2dbc:r2dbc-h2'
 	annotationProcessor 'org.projectlombok:lombok'
