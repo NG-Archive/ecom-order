@@ -38,7 +38,7 @@ public class OrderController {
         @LoginUser UserContext user,
         @PathVariable Long id) {
 
-        return orderService.readProduct(user, id);
+        return orderService.readOrder(user, id);
     }
 
 }

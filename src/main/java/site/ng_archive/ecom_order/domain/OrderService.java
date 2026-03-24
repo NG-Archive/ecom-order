@@ -27,7 +27,7 @@ public class OrderService {
             .map(OrderListResponse::from);
     }
 
-    public Mono<OrderDetailResponse> readProduct(UserContext user, Long id) {
+    public Mono<OrderDetailResponse> readOrder(UserContext user, Long id) {
        return orderRepository.findById(id)
             .filter(order -> user.id().equals(order.memberId()))
             .switchIfEmpty(Mono.defer(() -> Mono.error(new ForbiddenException("auth.forbidden"))))
