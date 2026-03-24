@@ -122,6 +122,8 @@ public class OrderControllerTest extends AcceptedTest {
     @Test
     void 주문상세조회() {
         Long orderId = createTestOrder(TEST_MEMBER_ID);
+        createTestOrderItem(orderId);
+
         String token = createTestToken(TEST_MEMBER_ID, TEST_ROLE);
         mockGetDeliveryInfo(TEST_MEMBER_ID,10L);
 
@@ -164,10 +166,40 @@ public class OrderControllerTest extends AcceptedTest {
     }
 
     @Test
+    void 주문상세조회_미존재주문오류() {
+        String token = createTestToken(TEST_MEMBER_ID, TEST_ROLE);
+
+        ErrorResponse errorResponse = given()
+            .header("Authorization", "Bearer " + token)
+            .pathParam("id", -1L)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 상세 조회")
+                    .description("주문 ID를 사용하여 상세 정보를 조회합니다.")
+                    .pathParameters(
+                        parameterWithName("id").description("주문 ID").type(SimpleType.INTEGER)
+                    )
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .get("/order/{id}")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("order.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("주문이 존재하지 않습니다.");
+    }
+
+    @Test
     void 주문상세조회_타인주문조회오류() {
         Long orderId = createTestOrder(TEST_MEMBER_ID);
         String token = createTestToken(-1L, TEST_ROLE);
-        mockGetDeliveryInfo(TEST_MEMBER_ID,10L);
 
         ErrorResponse errorResponse = given()
             .header("Authorization", "Bearer " + token)
@@ -196,18 +228,53 @@ public class OrderControllerTest extends AcceptedTest {
         Assertions.assertThat(errorResponse.message()).isEqualTo("권한이 필요합니다.");
     }
 
+    @Test
+    void 주문상세조회_미존재주문상품오류() {
+        Long orderId = createTestOrder(TEST_MEMBER_ID);
+        String token = createTestToken(TEST_MEMBER_ID, TEST_ROLE);
+        mockGetDeliveryInfo(TEST_MEMBER_ID,10L);
+
+        ErrorResponse errorResponse = given()
+            .header("Authorization", "Bearer " + token)
+            .pathParam("id", orderId)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 상세 조회")
+                    .description("주문 ID를 사용하여 상세 정보를 조회합니다.")
+                    .pathParameters(
+                        parameterWithName("id").description("주문 ID").type(SimpleType.INTEGER)
+                    )
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .get("/order/{id}")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("orderitem.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("주문상품이 존재하지 않습니다.");
+    }
+
     private String createTestToken(Long memberId, String role) {
         return TokenUtil.getSign(UserContext.of(memberId, role));
     }
 
     private Long createTestOrder(Long memberId) {
-        CreateOrderCommand orderCommand = new CreateOrderCommand(10000L, OrderStatus.ORDERED, memberId, 10L);
-        OrderResponse order = orderService.createOrder(orderCommand).block();
+        CreateOrderCommand command = new CreateOrderCommand(10000L, OrderStatus.ORDERED, memberId, 10L);
 
-        CreateOrderItemCommand orderItemCommand = new CreateOrderItemCommand(order.id(), 100L, "상품A", 10000L);
-        orderService.createOrderItem(orderItemCommand).block();
+        return orderService.createOrder(command).block().id();
+    }
 
-        return order.id();
+    private Long createTestOrderItem(Long orderId) {
+        CreateOrderItemCommand command = new CreateOrderItemCommand(orderId, 100L, "상품A", 10000L);
+
+        return orderService.createOrderItem(command).block().id();
     }
 
     private void mockGetMember(Long memberId, String status) {
