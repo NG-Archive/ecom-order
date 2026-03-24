@@ -6,16 +6,17 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import site.ng_archive.ecom_common.auth.UserContext;
 import site.ng_archive.ecom_common.auth.exception.ForbiddenException;
-import site.ng_archive.ecom_order.domain.dto.CreateOrderCommand;
-import site.ng_archive.ecom_order.domain.dto.OrderListResponse;
-import site.ng_archive.ecom_order.domain.dto.OrderResponse;
+import site.ng_archive.ecom_order.domain.dto.*;
 import site.ng_archive.ecom_order.domain.requester.MemberRequester;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final MemberRequester memberRequester;
 
     public Flux<OrderListResponse> readAllOrders(UserContext user, long offset, int size) {
@@ -26,9 +27,30 @@ public class OrderService {
             .map(OrderListResponse::from);
     }
 
+    public Mono<OrderDetailResponse> readProduct(UserContext user, Long id) {
+       return orderRepository.findById(id)
+            .filter(order -> user.id().equals(order.memberId()))
+            .switchIfEmpty(Mono.defer(() -> Mono.error(new ForbiddenException("auth.forbidden"))))
+            .flatMap(order -> {
+                Mono<List<OrderItemResponse>> orderItemsMono = orderItemRepository.findByOrderId(id)
+                    .map(OrderItemResponse::from)
+                    .collectList();
+                Mono<DeliveryInfoResponse> deliveryInfoMono = memberRequester.getDeliveryInfo(order.memberId(), order.deliveryId());
+
+                return Mono.zip(orderItemsMono, deliveryInfoMono, (orderItems, delivery) ->
+                    OrderDetailResponse.of(order, orderItems, delivery)
+                );
+            });
+    }
+
     public Mono<OrderResponse> createOrder(CreateOrderCommand command) {
         return orderRepository.save(command.toEntity())
             .map(OrderResponse::from);
+    }
+
+    public Mono<OrderItemResponse> createOrderItem(CreateOrderItemCommand command) {
+        return orderItemRepository.save(command.toEntity())
+            .map(OrderItemResponse::from);
     }
 
 }
