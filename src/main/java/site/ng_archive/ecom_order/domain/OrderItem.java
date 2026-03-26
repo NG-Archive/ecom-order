@@ -12,4 +12,7 @@ public record OrderItem(
     String productName,
     Long productPrice
 ) {
+    public static OrderItem create(Long orderId, Long productId, String productName, Long productPrice) {
+        return new OrderItem(null, orderId, productId, productName, productPrice);
+    }
 }

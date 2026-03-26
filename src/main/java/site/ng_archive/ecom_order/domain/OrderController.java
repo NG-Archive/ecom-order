@@ -1,19 +1,20 @@
 package site.ng_archive.ecom_order.domain;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import site.ng_archive.ecom_common.auth.UserContext;
 import site.ng_archive.ecom_common.auth.aspect.LoginUser;
 import site.ng_archive.ecom_common.auth.aspect.RequireRoles;
+import site.ng_archive.ecom_order.domain.dto.CreateOrderRequest;
 import site.ng_archive.ecom_order.domain.dto.OrderDetailResponse;
 import site.ng_archive.ecom_order.domain.dto.OrderListResponse;
+import site.ng_archive.ecom_order.domain.dto.OrderResponse;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,8 +29,7 @@ public class OrderController {
         @LoginUser UserContext user,
         @RequestParam(defaultValue = "0") @Min(0) long offset,
         @RequestParam(defaultValue = "10") @Min(1) int size) {
-
-        return orderService.readAllOrders(user, offset, size);
+        return orderService.readAllOrders(user.id(), offset, size);
     }
 
     @RequireRoles
@@ -37,8 +37,16 @@ public class OrderController {
     public Mono<OrderDetailResponse> readOrder(
         @LoginUser UserContext user,
         @PathVariable Long id) {
+        return orderService.readOrder(user.id(), id);
+    }
 
-        return orderService.readOrder(user, id);
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequireRoles
+    @PostMapping("/order")
+    public Mono<OrderResponse> createOrder(
+        @LoginUser UserContext user,
+        @Valid @RequestBody CreateOrderRequest request) {
+        return orderService.createOrder(request.toCommand(user.id()));
     }
 
 }

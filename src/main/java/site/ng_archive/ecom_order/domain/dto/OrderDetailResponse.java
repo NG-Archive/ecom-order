@@ -14,7 +14,7 @@ public record OrderDetailResponse(
     Long deliveryId,
     LocalDateTime updatedDate,
     List<OrderItemResponse> orderItems,
-    String address
+    String deliveryAddress
     ) {
     public static OrderDetailResponse of(Order order, List<OrderItemResponse> orderItems, DeliveryInfoResponse delivery) {
         return new OrderDetailResponse(order.id(),

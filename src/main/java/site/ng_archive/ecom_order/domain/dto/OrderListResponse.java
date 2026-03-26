@@ -9,7 +9,7 @@ public record OrderListResponse(
     Long totalPrice,
     String status,
     String statusName,
-    LocalDateTime createdDate
+    LocalDateTime updatedDate
 ) {
     public static OrderListResponse from(Order order) {
         return new OrderListResponse(
@@ -17,6 +17,6 @@ public record OrderListResponse(
             order.totalPrice(),
             order.status().name(),
             order.status().getDesc(),
-            order.createdDate());
+            order.updatedDate());
     }
 }

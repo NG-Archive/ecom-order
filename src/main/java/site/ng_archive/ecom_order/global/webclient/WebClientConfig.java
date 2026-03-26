@@ -40,6 +40,54 @@ public class WebClientConfig {
         );
     }
 
+    @Bean
+    public WebClient productClient(
+        WebClient.Builder builder,
+        @Value("${app.product-api.url:http://localhost:8081}") String url,
+        @Value("${app.product-api.pool-size:100}") Integer poolSize,
+        @Value("${app.product-api.pool-acquire-time:3}") Integer acquireTime,
+        @Value("${app.product-api.pool-idle-time:30}") Integer idleTime,
+        @Value("${app.product-api.pool-max-time:60}") Integer maxTime,
+        @Value("${app.product-api.pool-evict-time:30}") Integer evictTime,
+        @Value("${app.product-api.time-out:3}") Integer timeout
+    ) {
+        return createWebClient(
+            builder,
+            "product-api",
+            url,
+            poolSize,
+            acquireTime,
+            idleTime,
+            maxTime,
+            evictTime,
+            timeout
+        );
+    }
+
+    @Bean
+    public WebClient stockClient(
+        WebClient.Builder builder,
+        @Value("${app.stock-api.url:http://localhost:8081}") String url,
+        @Value("${app.stock-api.pool-size:100}") Integer poolSize,
+        @Value("${app.stock-api.pool-acquire-time:3}") Integer acquireTime,
+        @Value("${app.stock-api.pool-idle-time:30}") Integer idleTime,
+        @Value("${app.stock-api.pool-max-time:60}") Integer maxTime,
+        @Value("${app.stock-api.pool-evict-time:30}") Integer evictTime,
+        @Value("${app.stock-api.time-out:3}") Integer timeout
+    ) {
+        return createWebClient(
+            builder,
+            "stock-api",
+            url,
+            poolSize,
+            acquireTime,
+            idleTime,
+            maxTime,
+            evictTime,
+            timeout
+        );
+    }
+
     private WebClient createWebClient(
         WebClient.Builder builder,
         String poolName,
