@@ -2,6 +2,8 @@ package site.ng_archive.ecom_order.domain;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
@@ -40,7 +42,7 @@ public class OrderController {
     }
 
     @RequireRoles
-    @GetMapping("/order/token")
+    @PostMapping("/order/token")
     public Mono<OrderTokenResponse> generateOrderToken() {
         return Mono.fromSupplier(() -> new OrderTokenResponse(UUID.randomUUID().toString()));
     }
@@ -50,7 +52,7 @@ public class OrderController {
     @PostMapping("/order")
     public Mono<OrderResponse> createOrder(
         @LoginUser UserContext user,
-        @RequestHeader("X-Order-Token") String orderToken,
+        @RequestHeader("X-Order-Token") @NotBlank @Size(max = 50) String orderToken,
         @Valid @RequestBody CreateOrderRequest request) {
         return orderService.createOrder(request.toCommand(user.id()), orderToken);
     }
