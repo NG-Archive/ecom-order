@@ -3,6 +3,7 @@ package site.ng_archive.ecom_order.domain;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface OrderRepository extends ReactiveCrudRepository<Order, Long> {
 
@@ -16,5 +17,7 @@ public interface OrderRepository extends ReactiveCrudRepository<Order, Long> {
         ORDER BY o.id DESC
         """)
     Flux<Order> findByAll(long offset, int size, Long memberId);
+
+    Mono<Order> findByOrderToken(String orderToken);
 
 }

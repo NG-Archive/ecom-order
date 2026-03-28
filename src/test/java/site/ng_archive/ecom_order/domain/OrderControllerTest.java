@@ -20,6 +20,8 @@ import site.ng_archive.ecom_order.domain.requester.MemberRequester;
 import site.ng_archive.ecom_order.domain.requester.ProductRequester;
 import site.ng_archive.ecom_order.domain.requester.StockRequester;
 
+import java.util.List;
+
 import static com.epages.restdocs.apispec.ResourceDocumentation.parameterWithName;
 import static io.restassured.module.webtestclient.RestAssuredWebTestClient.given;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -44,6 +46,7 @@ public class OrderControllerTest extends AcceptedTest {
     private static final String TEST_MEMBER_ROLE = "USER";
     private static final Long TEST_PRODUCT_ID = 100L;
     private static final Long TEST_DELIVERY_ID = 1000L;
+    private static final String TEST_ORDER_TOKEN = "order-token";
 
     @BeforeEach
     void setUp() {
@@ -54,7 +57,7 @@ public class OrderControllerTest extends AcceptedTest {
     @Test
     void 주문목록조회_성공() {
         createTestOrder(TEST_MEMBER_ID, TEST_DELIVERY_ID);
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
         mockGetMember(TEST_MEMBER_ID, "NORMAL");
 
         given()
@@ -94,7 +97,7 @@ public class OrderControllerTest extends AcceptedTest {
 
     @Test
     void 주문목록조회_실패_탈퇴한회원조회() {
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
         mockGetMember(TEST_MEMBER_ID, "WITHDRAWN");
 
         ErrorResponse errorResponse = given()
@@ -131,7 +134,7 @@ public class OrderControllerTest extends AcceptedTest {
         Order createdOrder = createTestOrder(TEST_MEMBER_ID, TEST_DELIVERY_ID);
         createTestOrderItem(createdOrder.id());
 
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
         mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
 
         OrderDetailResponse response = given()
@@ -174,7 +177,7 @@ public class OrderControllerTest extends AcceptedTest {
 
     @Test
     void 주문상세조회_실패_미존재주문() {
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
 
         ErrorResponse errorResponse = given()
             .header("Authorization", "Bearer " + token)
@@ -206,7 +209,7 @@ public class OrderControllerTest extends AcceptedTest {
     @Test
     void 주문상세조회_실패_타인주문조회() {
         Long orderId = createTestOrder(TEST_MEMBER_ID, TEST_DELIVERY_ID).id();
-        String token = createTestToken(-1L, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(-1L, TEST_MEMBER_ROLE);
 
         ErrorResponse errorResponse = given()
             .header("Authorization", "Bearer " + token)
@@ -238,7 +241,7 @@ public class OrderControllerTest extends AcceptedTest {
     @Test
     void 주문상세조회_실패_미존재주문상품() {
         Order createdOrder = createTestOrder(TEST_MEMBER_ID, TEST_DELIVERY_ID);
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
         mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
 
         ErrorResponse errorResponse = given()
@@ -269,12 +272,37 @@ public class OrderControllerTest extends AcceptedTest {
     }
 
     @Test
+    void 주문토큰생성_성공() {
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+
+        given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 토큰 생성")
+                    .description("중복 주문 방지를 위해 주문 식별 토큰을 발급합니다.")
+                    .responseFields(
+                        field(OrderTokenResponse.class, "token", "주문 토큰")
+                    )
+                    .responseSchema(Schema.schema("OrderTokenResponse"))
+            ))
+            .get("/order/token")
+            .then()
+            .status(HttpStatus.OK)
+            .contentType(ContentType.JSON)
+            .body("token", notNullValue())
+            .log().all();
+    }
+
+    @Test
     void 주문생성_성공() {
         CreateOrderRequest request = new CreateOrderRequest(
             TEST_DELIVERY_ID,
             new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 2L)
         );
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
 
         mockGetProduct(TEST_PRODUCT_ID);
         mockGetStock(TEST_PRODUCT_ID);
@@ -284,6 +312,7 @@ public class OrderControllerTest extends AcceptedTest {
         OrderResponse response = given()
             .contentType(ContentType.JSON)
             .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
             .body(request)
             .consumeWith(document(
                 info()
@@ -321,16 +350,16 @@ public class OrderControllerTest extends AcceptedTest {
 
         Order savedOrder = orderRepository.findById(response.id()).block();
         Assertions.assertThat(savedOrder.id()).isEqualTo(response.id());
-        Assertions.assertThat(savedOrder.status()).isEqualTo(OrderStatus.ORDERED);
+        Assertions.assertThat(savedOrder.status()).isEqualTo(OrderStatus.COMPLETED);
     }
 
     @Test
-    void 주문생성_실패_재고부족() {
+    void 주문생성_실패_사전재고부족() {
         CreateOrderRequest request = new CreateOrderRequest(
             TEST_DELIVERY_ID,
             new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 20L)
         );
-        String token = createTestToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
 
         mockGetProduct(TEST_PRODUCT_ID);
         mockGetStock(TEST_PRODUCT_ID);
@@ -339,6 +368,7 @@ public class OrderControllerTest extends AcceptedTest {
         ErrorResponse errorResponse = given()
             .contentType(ContentType.JSON)
             .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
             .body(request)
             .consumeWith(document(
                 info()
@@ -368,18 +398,146 @@ public class OrderControllerTest extends AcceptedTest {
         Assertions.assertThat(errorResponse.message()).isEqualTo("상품 재고가 부족합니다.");
     }
 
+    @Test
+    void 주문생성_실패_차감중재고부족() {
+        CreateOrderRequest request = new CreateOrderRequest(
+            TEST_DELIVERY_ID,
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 2L)
+        );
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
 
-    private String createTestToken(Long memberId, String role) {
+        mockGetProduct(TEST_PRODUCT_ID);
+        mockGetStock(TEST_PRODUCT_ID);
+        mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
+        mockDeductStockError();
+
+        ErrorResponse errorResponse = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
+            .body(request)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 생성")
+                    .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestFields(
+                        field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
+                        field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
+                        field(CreateOrderRequest.class, "orderItem.productId", "주문한 상품 ID"),
+                        field(CreateOrderRequest.class, "orderItem.quantity", "주문 상품 수량")
+                    )
+                    .requestSchema(Schema.schema("OrderCreateRequest"))
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .post("/order")
+            .then()
+            .status(HttpStatus.BAD_REQUEST)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Order order = orderRepository.findByOrderToken(TEST_ORDER_TOKEN).block();
+        Assertions.assertThat(order.status()).isEqualTo(OrderStatus.FAILED);
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("stock.insufficient");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("상품 재고가 부족합니다.");
+    }
+
+    @Test
+    void 주문생성_실패_주문토큰누락() {
+        CreateOrderRequest request = new CreateOrderRequest(
+            TEST_DELIVERY_ID,
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 2L)
+        );
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+
+        ErrorResponse errorResponse = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .body(request)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 생성")
+                    .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .post("/order")
+            .then()
+            .status(HttpStatus.BAD_REQUEST)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("error.missing.request");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("필수 header 'X-Order-Token'이(가) 누락되었습니다.");
+    }
+
+    @Test
+    void 주문생성_실패_동일한주문() {
+        createTestOrder(TEST_MEMBER_ID, TEST_DELIVERY_ID);
+        CreateOrderRequest request = new CreateOrderRequest(
+            TEST_DELIVERY_ID,
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 2L)
+        );
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+
+        mockGetProduct(TEST_PRODUCT_ID);
+        mockGetStock(TEST_PRODUCT_ID);
+        mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
+
+        ErrorResponse errorResponse = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
+            .body(request)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 생성")
+                    .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestFields(
+                        field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
+                        field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
+                        field(CreateOrderRequest.class, "orderItem.productId", "주문한 상품 ID"),
+                        field(CreateOrderRequest.class, "orderItem.quantity", "주문 상품 수량")
+                    )
+                    .requestSchema(Schema.schema("OrderCreateRequest"))
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .post("/order")
+            .then()
+            .status(HttpStatus.BAD_REQUEST)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        List<Order> orders = orderRepository.findAll().collectList().block();
+        Assertions.assertThat(orders.size()).isEqualTo(1);
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("order.status.completed");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("이미 완료된 주문입니다.");
+    }
+
+    private String createTestJwtToken(Long memberId, String role) {
         return TokenUtil.getSign(UserContext.of(memberId, role));
     }
 
     private Order createTestOrder(Long memberId, Long deliveryId) {
-        Order order = new Order(null, 10000L, OrderStatus.ORDERED, memberId, deliveryId, null, null);
+        Order order = new Order(null, 10000L, OrderStatus.COMPLETED, memberId, deliveryId, TEST_ORDER_TOKEN, null, null);
         return orderRepository.save(order).block();
     }
 
     private OrderItem createTestOrderItem(Long orderId) {
-        OrderItem orderItem = new OrderItem(null, orderId, 100L, "테스트 상품", 10000L);
+        OrderItem orderItem = new OrderItem(null, orderId, TEST_PRODUCT_ID, "테스트 상품", 10000L);
         return orderItemRepository.save(orderItem).block();
     }
 
@@ -406,6 +564,11 @@ public class OrderControllerTest extends AcceptedTest {
     private void mockDeductStock() {
         BDDMockito.given(stockRequester.deductStock(any(), any(), any()))
             .willReturn(Mono.empty());
+    }
+
+    private void mockDeductStockError() {
+        BDDMockito.given(stockRequester.deductStock(any(), any(), any()))
+            .willReturn(Mono.error(new RuntimeException("재고 부족")));
     }
 
 }

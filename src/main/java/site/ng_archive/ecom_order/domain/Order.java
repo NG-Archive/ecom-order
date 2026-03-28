@@ -15,12 +15,17 @@ public record Order(
     OrderStatus status,
     Long memberId,
     Long deliveryId,
+    String orderToken,
     @CreatedDate
     LocalDateTime createdDate,
     @LastModifiedDate
     LocalDateTime updatedDate
 ) {
-    public static Order create(Long memberId, Long totalPrice, Long deliveryId) {
-        return new Order(null, totalPrice, OrderStatus.ORDERED, memberId, deliveryId, null, null);
+    public static Order createPending(Long memberId, Long totalPrice, Long deliveryId, String orderToken) {
+        return new Order(null, totalPrice, OrderStatus.PENDING, memberId, deliveryId, orderToken, null, null);
+    }
+
+    public Order withStatus(OrderStatus newStatus) {
+        return new Order(id, totalPrice, newStatus, memberId, deliveryId, orderToken, createdDate, updatedDate);
     }
 }

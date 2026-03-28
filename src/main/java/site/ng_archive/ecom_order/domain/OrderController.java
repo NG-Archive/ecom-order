@@ -11,10 +11,9 @@ import reactor.core.publisher.Mono;
 import site.ng_archive.ecom_common.auth.UserContext;
 import site.ng_archive.ecom_common.auth.aspect.LoginUser;
 import site.ng_archive.ecom_common.auth.aspect.RequireRoles;
-import site.ng_archive.ecom_order.domain.dto.CreateOrderRequest;
-import site.ng_archive.ecom_order.domain.dto.OrderDetailResponse;
-import site.ng_archive.ecom_order.domain.dto.OrderListResponse;
-import site.ng_archive.ecom_order.domain.dto.OrderResponse;
+import site.ng_archive.ecom_order.domain.dto.*;
+
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -40,13 +39,20 @@ public class OrderController {
         return orderService.readOrder(user.id(), id);
     }
 
+    @RequireRoles
+    @GetMapping("/order/token")
+    public Mono<OrderTokenResponse> generateOrderToken() {
+        return Mono.fromSupplier(() -> new OrderTokenResponse(UUID.randomUUID().toString()));
+    }
+
     @ResponseStatus(HttpStatus.CREATED)
     @RequireRoles
     @PostMapping("/order")
     public Mono<OrderResponse> createOrder(
         @LoginUser UserContext user,
+        @RequestHeader("X-Order-Token") String orderToken,
         @Valid @RequestBody CreateOrderRequest request) {
-        return orderService.createOrder(request.toCommand(user.id()));
+        return orderService.createOrder(request.toCommand(user.id()), orderToken);
     }
 
 }
