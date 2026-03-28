@@ -5,7 +5,4 @@ public record CreateOrderCommand(
     Long deliveryId,
     CreateOrderItemCommand orderItem
 ) {
-    public Long calculateTotalPrice(Long price) {
-        return orderItem.quantity() * price;
-    }
 }
