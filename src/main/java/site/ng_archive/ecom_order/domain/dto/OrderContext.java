@@ -5,4 +5,7 @@ public record OrderContext(
     StockResponse stock,
     DeliveryInfoResponse delivery
 ) {
+    public boolean hasEnoughStock(Long quantity) {
+        return stock().quantity() >= quantity;
+    }
 }

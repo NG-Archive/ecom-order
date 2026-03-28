@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status varchar(20) not null,
     member_id bigint not null,
     delivery_id bigint not null,
-    order_token VARCHAR(50) not null,
+    order_token varchar(50) not null,
     created_date datetime(6) not null,
     updated_date datetime(6) not null,
 
@@ -16,5 +16,6 @@ CREATE TABLE IF NOT EXISTS order_item (
     order_id bigint not null,
     product_id bigint not null,
     product_name varchar(255) not null,
-    product_price bigint not null
+    product_price bigint not null,
+    product_quantity bigint not null
 );

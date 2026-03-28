@@ -1,6 +1,7 @@
 package site.ng_archive.ecom_order.domain;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
@@ -54,51 +55,61 @@ public class OrderService {
     }
 
     public Mono<OrderResponse> createOrder(CreateOrderCommand command, String orderToken) {
-        return prepareOrderContext(command)
-            .flatMap(ctx -> saveOrderAndItemsPending(command, ctx, orderToken).as(transactionalOperator::transactional))
-            .flatMap(orderResponse -> deductStockAndOrderComplete(command, orderResponse));
+        return createOrderIfNotExists(command, orderToken)
+            .flatMap(initialOrder ->
+                prepareOrderContext(command)
+                    .flatMap(ctx -> processOrderPersistence(initialOrder, ctx, command.orderItem().quantity()))
+                    .flatMap(this::processStockDeduction)
+            )
+            .flatMap(response -> processStockDeduction(response));
+    }
+
+    private Mono<Order> createOrderIfNotExists(CreateOrderCommand command, String orderToken) {
+        Order order = Order.createInitial(command.memberId(), command.deliveryId(), orderToken);
+
+        return orderRepository.save(order)
+            .onErrorMap(DuplicateKeyException.class, e -> new IllegalStateException("order.already.exists"));
     }
 
     private Mono<OrderContext> prepareOrderContext(CreateOrderCommand command) {
         CreateOrderItemCommand itemCommand = command.orderItem();
 
-        return Mono.zip(productRequester.getProduct(itemCommand.productId()),
+        return Mono.zip(
+                productRequester.getProduct(itemCommand.productId()),
                 stockRequester.getStock(itemCommand.productId()),
                 memberRequester.getDeliveryInfo(command.memberId(), command.deliveryId())
             )
             .map(t -> new OrderContext(t.getT1(), t.getT2(), t.getT3()))
-            .filter(ctx -> ctx.stock().quantity() >= itemCommand.quantity())
+            .filter(ctx -> ctx.hasEnoughStock(itemCommand.quantity()))
             .switchIfEmpty(Mono.error(() -> new IllegalArgumentException("stock.insufficient")));
     }
 
-    private Mono<OrderResponse> saveOrderAndItemsPending(CreateOrderCommand command, OrderContext ctx, String orderToken) {
-        Order order = Order.createPending(
-            command.memberId(),
-            command.calculateTotalPrice(ctx.product().price()),
-            command.deliveryId(),
-            orderToken
-        );
+    private Mono<OrderResponse> processOrderPersistence(Order order, OrderContext ctx, Long quantity) {
+        long totalPrice = quantity * ctx.product().price();
+        Order updatedOrder = order.withDetails(totalPrice);
 
-        return orderRepository.save(order)
-            .onErrorMap(e -> new IllegalStateException("order.status.completed"))
+        return orderRepository.save(updatedOrder)
             .flatMap(savedOrder -> {
-                OrderItem orderItem = OrderItem.create(savedOrder.id(), ctx.product().id(), ctx.product().name(), ctx.product().price());
+                OrderItem orderItem = OrderItem.create(
+                    savedOrder.id(), ctx.product().id(), ctx.product().name(),
+                    ctx.product().price(), quantity);
                 return orderItemRepository.save(orderItem)
                     .map(savedOrderItem -> OrderResponse.of(savedOrder, savedOrderItem, ctx.delivery().address()));
-            });
+            })
+            .as(transactionalOperator::transactional);
     }
 
-    private Mono<OrderResponse> deductStockAndOrderComplete(CreateOrderCommand command, OrderResponse orderResponse) {
-        return stockRequester.deductStock(command.orderItem().productId(),
-                orderResponse.id(),
-                command.orderItem().quantity()
+    private Mono<OrderResponse> processStockDeduction(OrderResponse response) {
+        return stockRequester.deductStock(
+                response.orderItem().productId(),
+                response.id(),
+                response.orderItem().productQuantity()
             )
-            .then(updateOrderStatus(orderResponse.id(), OrderStatus.COMPLETED))
-            .thenReturn(orderResponse.withStatus(OrderStatus.COMPLETED))
             .onErrorResume(e ->
-                updateOrderStatus(orderResponse.id(), OrderStatus.FAILED)
-                    .then(Mono.error(() -> new IllegalArgumentException("stock.insufficient")))
-            );
+                updateOrderStatus(response.id(), OrderStatus.FAILED)
+                    .then(Mono.error(() -> new IllegalArgumentException("stock.insufficient"))))
+            .then(updateOrderStatus(response.id(), OrderStatus.COMPLETED))
+            .thenReturn(response.withStatus(OrderStatus.COMPLETED));
     }
 
     private Mono<Void> updateOrderStatus(Long orderId, OrderStatus status) {

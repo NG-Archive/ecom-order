@@ -161,6 +161,7 @@ public class OrderControllerTest extends AcceptedTest {
                         field(OrderDetailResponse.class, "orderItems[].productId", "주문한 상품 ID"),
                         field(OrderDetailResponse.class, "orderItems[].productName", "주문 시 상품 이름"),
                         field(OrderDetailResponse.class, "orderItems[].productPrice", "주문 시 상품 가격"),
+                        field(OrderDetailResponse.class, "orderItems[].productQuantity", "주문 시 상품 수량"),
                         field(OrderDetailResponse.class, "deliveryAddress", "배송지 주소")
                     )
                     .responseSchema(Schema.schema("OrderDetail"))
@@ -288,7 +289,7 @@ public class OrderControllerTest extends AcceptedTest {
                     )
                     .responseSchema(Schema.schema("OrderTokenResponse"))
             ))
-            .get("/order/token")
+            .post("/order/token")
             .then()
             .status(HttpStatus.OK)
             .contentType(ContentType.JSON)
@@ -337,7 +338,8 @@ public class OrderControllerTest extends AcceptedTest {
                         field(OrderResponse.class, "orderItem.id", "주문 상품 ID"),
                         field(OrderResponse.class, "orderItem.productId", "주문한 상품 ID"),
                         field(OrderResponse.class, "orderItem.productName", "주문 시 상품 이름"),
-                        field(OrderResponse.class, "orderItem.productPrice", "주문 시 상품 가격")
+                        field(OrderResponse.class, "orderItem.productPrice", "주문 시 상품 가격"),
+                        field(OrderResponse.class, "orderItem.productQuantity", "주문 시 상품 수량")
                     )
                     .responseSchema(Schema.schema("OrderCreatedResponse"))
             ))
@@ -523,8 +525,8 @@ public class OrderControllerTest extends AcceptedTest {
 
         List<Order> orders = orderRepository.findAll().collectList().block();
         Assertions.assertThat(orders.size()).isEqualTo(1);
-        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("order.status.completed");
-        Assertions.assertThat(errorResponse.message()).isEqualTo("이미 완료된 주문입니다.");
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("order.already.exists");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("이미 존재하는 주문입니다.");
     }
 
     private String createTestJwtToken(Long memberId, String role) {
@@ -537,7 +539,7 @@ public class OrderControllerTest extends AcceptedTest {
     }
 
     private OrderItem createTestOrderItem(Long orderId) {
-        OrderItem orderItem = new OrderItem(null, orderId, TEST_PRODUCT_ID, "테스트 상품", 10000L);
+        OrderItem orderItem = new OrderItem(null, orderId, TEST_PRODUCT_ID, "테스트 상품", 10000L, 10L);
         return orderItemRepository.save(orderItem).block();
     }
 

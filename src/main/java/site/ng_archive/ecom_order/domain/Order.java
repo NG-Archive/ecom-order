@@ -21,8 +21,12 @@ public record Order(
     @LastModifiedDate
     LocalDateTime updatedDate
 ) {
-    public static Order createPending(Long memberId, Long totalPrice, Long deliveryId, String orderToken) {
-        return new Order(null, totalPrice, OrderStatus.PENDING, memberId, deliveryId, orderToken, null, null);
+    public static Order createInitial(Long memberId, Long deliveryId, String orderToken) {
+        return new Order(null, 0L, OrderStatus.PENDING, memberId, deliveryId, orderToken, null, null);
+    }
+
+    public Order withDetails(Long totalPrice) {
+        return new Order(id, totalPrice, status, memberId, deliveryId, orderToken, createdDate, updatedDate);
     }
 
     public Order withStatus(OrderStatus newStatus) {

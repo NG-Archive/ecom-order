@@ -10,9 +10,10 @@ public record OrderItem(
     Long orderId,
     Long productId,
     String productName,
-    Long productPrice
+    Long productPrice,
+    Long productQuantity
 ) {
-    public static OrderItem create(Long orderId, Long productId, String productName, Long productPrice) {
-        return new OrderItem(null, orderId, productId, productName, productPrice);
+    public static OrderItem create(Long orderId, Long productId, String productName, Long productPrice, Long productQuantity) {
+        return new OrderItem(null, orderId, productId, productName, productPrice, productQuantity);
     }
 }
