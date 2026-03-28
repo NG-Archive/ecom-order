@@ -60,8 +60,7 @@ public class OrderService {
                 prepareOrderContext(command)
                     .flatMap(ctx -> processOrderPersistence(initialOrder, ctx, command.orderItem().quantity()))
                     .flatMap(this::processStockDeduction)
-            )
-            .flatMap(response -> processStockDeduction(response));
+            );
     }
 
     private Mono<Order> createOrderIfNotExists(CreateOrderCommand command, String orderToken) {
