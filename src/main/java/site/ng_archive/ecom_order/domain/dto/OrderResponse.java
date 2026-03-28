@@ -2,6 +2,7 @@ package site.ng_archive.ecom_order.domain.dto;
 
 import site.ng_archive.ecom_order.domain.Order;
 import site.ng_archive.ecom_order.domain.OrderItem;
+import site.ng_archive.ecom_order.domain.OrderStatus;
 
 import java.time.LocalDateTime;
 
@@ -23,5 +24,9 @@ public record OrderResponse(
             deliveryAddress,
             order.createdDate()
         );
+    }
+
+    public OrderResponse withStatus(OrderStatus newStatus) {
+        return new OrderResponse(id, totalPrice, newStatus.name(), newStatus.getDesc(), orderItem, deliveryAddress, createdDate);
     }
 }
