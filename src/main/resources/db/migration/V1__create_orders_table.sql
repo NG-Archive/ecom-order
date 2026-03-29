@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS orders (
+CREATE TABLE orders (
     id bigint not null auto_increment primary key,
     total_price bigint not null,
     status varchar(20) not null,
@@ -9,13 +9,4 @@ CREATE TABLE IF NOT EXISTS orders (
     updated_date datetime(6) not null,
 
     constraint uk_orders_order_token unique (order_token)
-);
-
-CREATE TABLE IF NOT EXISTS order_item (
-    id bigint not null auto_increment primary key,
-    order_id bigint not null,
-    product_id bigint not null,
-    product_name varchar(255) not null,
-    product_price bigint not null,
-    product_quantity bigint not null
 );
