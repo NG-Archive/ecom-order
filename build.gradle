@@ -26,7 +26,7 @@ openapi3 {
 				description='로컬 개발 서버'
 			},
 			{
-				url='https://api.example.com'
+				url='https://ecom-order-api.parkging.com'
 				description='운영 서버'
 			}
 	]
