@@ -7,9 +7,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.reactive.function.client.ClientRequest;
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
+import site.ng_archive.ecom_common.auth.UserContext;
+import site.ng_archive.ecom_common.auth.token.TokenUtil;
 
 import java.time.Duration;
 
@@ -124,7 +129,29 @@ public class WebClientConfig {
             .baseUrl(baseUrl)
             .clientConnector(new ReactorClientHttpConnector(httpClient))
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .filter(addAuthHeader())
             .build();
+    }
+
+    private ExchangeFilterFunction addAuthHeader() {
+        // 1. request: 현재 나가는 요청 정보 / next: 다음 필터 혹은 네트워크 호출
+        return (request, next) -> Mono.deferContextual(ctx -> {
+            // 2. Reactor Context에서 userContext 정보 찾기
+            return ctx.getOrEmpty("userContext")
+                // 3. userContext 정보가 있다면 해당 유저 정보 기반으로 새로운 JWT 토큰 생성
+                .map(user -> {
+                    UserContext userContext = (UserContext) user;
+                    String token = TokenUtil.getSign(userContext);
+                    // 리액티브 객체는 불변이므로 기존 request를 복사해서 Authorization 헤더만 추가된 새로운 ClientRequest를 빌드
+                    ClientRequest filteredRequest = ClientRequest.from(request)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .build();
+
+                    return next.exchange(filteredRequest);
+                })
+                // 4. userContext 정보가 없다면 원본 요청(request)을 수정 없이 전달
+                .orElseGet(() -> next.exchange(request));
+        });
     }
 
 }
