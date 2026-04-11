@@ -22,6 +22,7 @@ import site.ng_archive.ecom_order.domain.requester.StockRequester;
 
 import java.util.List;
 
+import static com.epages.restdocs.apispec.ResourceDocumentation.headerWithName;
 import static com.epages.restdocs.apispec.ResourceDocumentation.parameterWithName;
 import static io.restassured.module.webtestclient.RestAssuredWebTestClient.given;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -320,6 +321,7 @@ public class OrderControllerTest extends AcceptedTest {
                     .tag("Order")
                     .summary("주문 생성")
                     .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
                     .requestFields(
                         field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
                         field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
@@ -377,6 +379,7 @@ public class OrderControllerTest extends AcceptedTest {
                     .tag("Order")
                     .summary("주문 생성")
                     .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
                     .requestFields(
                         field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
                         field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
@@ -423,6 +426,7 @@ public class OrderControllerTest extends AcceptedTest {
                     .tag("Order")
                     .summary("주문 생성")
                     .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
                     .requestFields(
                         field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
                         field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
@@ -504,6 +508,7 @@ public class OrderControllerTest extends AcceptedTest {
                     .tag("Order")
                     .summary("주문 생성")
                     .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
                     .requestFields(
                         field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
                         field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
