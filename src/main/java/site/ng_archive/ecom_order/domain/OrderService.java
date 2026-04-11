@@ -30,6 +30,7 @@ public class OrderService {
 
     public Flux<OrderListResponse> readAllOrders(Long memberId, long offset, int size) {
         return memberRequester.getMember(memberId)
+            .switchIfEmpty(Mono.error(()-> new EntityNotFoundException("member.notfound")))
             .filter(member -> "NORMAL".equals(member.status()))
             .switchIfEmpty(Mono.error(() -> new ForbiddenException("member.status.invalid")))
             .flatMapMany(member -> orderRepository.findByAll(offset, size, member.id()))
@@ -43,10 +44,11 @@ public class OrderService {
            .switchIfEmpty(Mono.error(() -> new ForbiddenException("auth.forbidden")))
            .flatMap(order -> {
                Mono<List<OrderItemResponse>> orderItemsMono = orderItemRepository.findByOrderId(orderId)
-                   .switchIfEmpty(Flux.defer(() -> Flux.error(new EntityNotFoundException("orderitem.notfound"))))
+                   .switchIfEmpty(Flux.error(() -> new EntityNotFoundException("orderitem.notfound")))
                    .map(OrderItemResponse::from)
                    .collectList();
-               Mono<DeliveryInfoResponse> deliveryInfoMono = memberRequester.getDeliveryInfo(order.memberId(), order.deliveryId());
+               Mono<DeliveryInfoResponse> deliveryInfoMono = memberRequester.getDeliveryInfo(order.memberId(), order.deliveryId())
+                   .switchIfEmpty(Mono.error(() -> new EntityNotFoundException("deliveryInfo.notfound")));
 
                return Mono.zip(orderItemsMono, deliveryInfoMono, (orderItems, delivery) ->
                    OrderDetailResponse.of(order, orderItems, delivery)
@@ -76,9 +78,12 @@ public class OrderService {
         CreateOrderItemCommand itemCommand = command.orderItem();
 
         return Mono.zip(
-                productRequester.getProduct(itemCommand.productId()),
-                stockRequester.getStock(itemCommand.productId()),
+                productRequester.getProduct(itemCommand.productId())
+                    .switchIfEmpty(Mono.error(() -> new EntityNotFoundException("product.notfound"))),
+                stockRequester.getStock(itemCommand.productId())
+                    .switchIfEmpty(Mono.error(() -> new EntityNotFoundException("stock.notfound"))),
                 memberRequester.getDeliveryInfo(command.memberId(), command.deliveryId())
+                    .switchIfEmpty(Mono.error(() -> new EntityNotFoundException("deliveryInfo.notfound")))
             )
             .map(t -> new OrderContext(t.getT1(), t.getT2(), t.getT3()))
             .filter(ctx -> ctx.hasEnoughStock(itemCommand.quantity()))
@@ -106,8 +111,7 @@ public class OrderService {
                 response.id(),
                 response.orderItem().productQuantity()
             )
-            .onErrorMap(e -> new IllegalArgumentException("stock.insufficient"))
-            .then(updateOrderStatus(response.id(), OrderStatus.COMPLETED))
+            .then(Mono.defer(() -> updateOrderStatus(response.id(), OrderStatus.COMPLETED)))
             .thenReturn(response.withStatus(OrderStatus.COMPLETED));
     }
 
