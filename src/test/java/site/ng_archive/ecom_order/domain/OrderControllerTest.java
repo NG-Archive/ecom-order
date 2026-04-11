@@ -48,6 +48,9 @@ public class OrderControllerTest extends AcceptedTest {
     private static final Long TEST_PRODUCT_ID = 100L;
     private static final Long TEST_DELIVERY_ID = 1000L;
     private static final String TEST_ORDER_TOKEN = "order-token";
+    private static final Long TEST_INSUFFICIENT_QUANTITY = 2L;
+    private static final Long TEST_QUANTITY = 10L;
+    private static final Long TEST_SUFFICIENT_QUANTITY = 20L;
 
     @BeforeEach
     void setUp() {
@@ -94,6 +97,40 @@ public class OrderControllerTest extends AcceptedTest {
             .body("[0].statusName", notNullValue())
             .body("[0].updatedDate", notNullValue())
             .log().all();
+    }
+
+    @Test
+    void 주문목록조회_실패_회원정보없음() {
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        mockGetMemberEmpty();
+
+        ErrorResponse errorResponse = given()
+            .header("Authorization", "Bearer " + token)
+            .queryParam("offset", 0)
+            .queryParam("size", 10)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 목록 조회")
+                    .description("토큰에 포함된 회원 정보를 기준으로 해당 사용자의 주문 목록을 페이징으로 조회합니다.")
+                    .queryParameters(
+                        parameterWithName("offset").description("페이지 오프셋").type(SimpleType.INTEGER).defaultValue(0),
+                        parameterWithName("size").description("페이지 크기").type(SimpleType.INTEGER).defaultValue(10)
+                    )
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .get("/orders")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("member.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("회원 데이터가 존재하지 않습니다.");
     }
 
     @Test
@@ -205,7 +242,7 @@ public class OrderControllerTest extends AcceptedTest {
             .extract().body().as(ErrorResponse.class);
 
         Assertions.assertThat(errorResponse.errorCode()).isEqualTo("order.notfound");
-        Assertions.assertThat(errorResponse.message()).isEqualTo("주문이 존재하지 않습니다.");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("주문 데이터가 존재하지 않습니다.");
     }
 
     @Test
@@ -270,7 +307,40 @@ public class OrderControllerTest extends AcceptedTest {
             .extract().body().as(ErrorResponse.class);
 
         Assertions.assertThat(errorResponse.errorCode()).isEqualTo("orderitem.notfound");
-        Assertions.assertThat(errorResponse.message()).isEqualTo("주문상품이 존재하지 않습니다.");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("주문상품 데이터가 존재하지 않습니다.");
+    }
+
+    @Test
+    void 주문상세조회_실패_배송정보없음() {
+        Order createdOrder = createTestOrder(TEST_MEMBER_ID, TEST_DELIVERY_ID);
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+        mockGetDeliveryInfoEmpty();
+
+        ErrorResponse errorResponse = given()
+            .header("Authorization", "Bearer " + token)
+            .pathParam("id", createdOrder.id())
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 상세 조회")
+                    .description("주문 ID를 사용하여 상세 정보를 조회합니다.")
+                    .pathParameters(
+                        parameterWithName("id").description("주문 ID").type(SimpleType.INTEGER)
+                    )
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .get("/order/{id}")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("deliveryInfo.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("배송 정보 데이터가 존재하지 않습니다.");
     }
 
     @Test
@@ -302,7 +372,7 @@ public class OrderControllerTest extends AcceptedTest {
     void 주문생성_성공() {
         CreateOrderRequest request = new CreateOrderRequest(
             TEST_DELIVERY_ID,
-            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 2L)
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, TEST_INSUFFICIENT_QUANTITY)
         );
         String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
 
@@ -358,10 +428,157 @@ public class OrderControllerTest extends AcceptedTest {
     }
 
     @Test
+    void 주문생성_실패_상품정보없음() {
+        CreateOrderRequest request = new CreateOrderRequest(
+            TEST_DELIVERY_ID,
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, TEST_INSUFFICIENT_QUANTITY)
+        );
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+
+        mockGetProductEmpty();
+        mockGetStock(TEST_PRODUCT_ID);
+        mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
+
+        ErrorResponse errorResponse = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
+            .body(request)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 생성")
+                    .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
+                    .requestFields(
+                        field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
+                        field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
+                        field(CreateOrderRequest.class, "orderItem.productId", "주문한 상품 ID"),
+                        field(CreateOrderRequest.class, "orderItem.quantity", "주문 상품 수량")
+                    )
+                    .requestSchema(Schema.schema("OrderCreateRequest"))
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .post("/order")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("product.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("상품 데이터가 존재하지 않습니다.");
+
+        Order order = orderRepository.findByOrderToken(TEST_ORDER_TOKEN).block();
+        Assertions.assertThat(order.status()).isEqualTo(OrderStatus.FAILED);
+    }
+
+    @Test
+    void 주문생성_실패_재고정보없음() {
+        CreateOrderRequest request = new CreateOrderRequest(
+            TEST_DELIVERY_ID,
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, TEST_INSUFFICIENT_QUANTITY)
+        );
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+
+        mockGetProduct(TEST_PRODUCT_ID);
+        mockGetStockEmpty();
+        mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
+
+        ErrorResponse errorResponse = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
+            .body(request)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 생성")
+                    .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
+                    .requestFields(
+                        field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
+                        field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
+                        field(CreateOrderRequest.class, "orderItem.productId", "주문한 상품 ID"),
+                        field(CreateOrderRequest.class, "orderItem.quantity", "주문 상품 수량")
+                    )
+                    .requestSchema(Schema.schema("OrderCreateRequest"))
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .post("/order")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("stock.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("재고 데이터가 존재하지 않습니다.");
+
+        Order order = orderRepository.findByOrderToken(TEST_ORDER_TOKEN).block();
+        Assertions.assertThat(order.status()).isEqualTo(OrderStatus.FAILED);
+    }
+
+    @Test
+    void 주문생성_실패_배송정보없음() {
+        CreateOrderRequest request = new CreateOrderRequest(
+            TEST_DELIVERY_ID,
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, TEST_INSUFFICIENT_QUANTITY)
+        );
+        String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
+
+        mockGetProduct(TEST_PRODUCT_ID);
+        mockGetStock(TEST_PRODUCT_ID);
+        mockGetDeliveryInfoEmpty();
+
+        ErrorResponse errorResponse = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + token)
+            .header("X-Order-Token", TEST_ORDER_TOKEN)
+            .body(request)
+            .consumeWith(document(
+                info()
+                    .tag("Order")
+                    .summary("주문 생성")
+                    .description("주문 정보를 입력해 주문을 생성합니다.")
+                    .requestHeaders(headerWithName("X-Order-Token").description("주문 토큰"))
+                    .requestFields(
+                        field(CreateOrderRequest.class, "deliveryId", "배송지 ID"),
+                        field(CreateOrderRequest.class, "orderItem", "주문 상품 정보"),
+                        field(CreateOrderRequest.class, "orderItem.productId", "주문한 상품 ID"),
+                        field(CreateOrderRequest.class, "orderItem.quantity", "주문 상품 수량")
+                    )
+                    .requestSchema(Schema.schema("OrderCreateRequest"))
+                    .responseFields(
+                        field(ErrorResponse.class, "errorCode", "오류 코드"),
+                        field(ErrorResponse.class, "message", "오류 메시지")
+                    )
+                    .responseSchema(Schema.schema("ErrorResponse"))
+            ))
+            .post("/order")
+            .then()
+            .status(HttpStatus.NOT_FOUND)
+            .log().all()
+            .extract().body().as(ErrorResponse.class);
+
+        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("deliveryInfo.notfound");
+        Assertions.assertThat(errorResponse.message()).isEqualTo("배송 정보 데이터가 존재하지 않습니다.");
+
+        Order order = orderRepository.findByOrderToken(TEST_ORDER_TOKEN).block();
+        Assertions.assertThat(order.status()).isEqualTo(OrderStatus.FAILED);
+    }
+
+    @Test
     void 주문생성_실패_사전재고부족() {
         CreateOrderRequest request = new CreateOrderRequest(
             TEST_DELIVERY_ID,
-            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 20L)
+            new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, TEST_SUFFICIENT_QUANTITY)
         );
         String token = createTestJwtToken(TEST_MEMBER_ID, TEST_MEMBER_ROLE);
 
@@ -401,10 +618,13 @@ public class OrderControllerTest extends AcceptedTest {
 
         Assertions.assertThat(errorResponse.errorCode()).isEqualTo("stock.insufficient");
         Assertions.assertThat(errorResponse.message()).isEqualTo("상품 재고가 부족합니다.");
+
+        Order order = orderRepository.findByOrderToken(TEST_ORDER_TOKEN).block();
+        Assertions.assertThat(order.status()).isEqualTo(OrderStatus.FAILED);
     }
 
     @Test
-    void 주문생성_실패_차감중재고부족() {
+    void 주문생성_실패_차감중재고오류() {
         CreateOrderRequest request = new CreateOrderRequest(
             TEST_DELIVERY_ID,
             new CreateOrderRequest.OrderItemRequest(TEST_PRODUCT_ID, 2L)
@@ -416,7 +636,7 @@ public class OrderControllerTest extends AcceptedTest {
         mockGetDeliveryInfo(TEST_MEMBER_ID, TEST_DELIVERY_ID);
         mockDeductStockError();
 
-        ErrorResponse errorResponse = given()
+        given()
             .contentType(ContentType.JSON)
             .header("Authorization", "Bearer " + token)
             .header("X-Order-Token", TEST_ORDER_TOKEN)
@@ -442,14 +662,11 @@ public class OrderControllerTest extends AcceptedTest {
             ))
             .post("/order")
             .then()
-            .status(HttpStatus.BAD_REQUEST)
-            .log().all()
-            .extract().body().as(ErrorResponse.class);
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .log().all();
 
         Order order = orderRepository.findByOrderToken(TEST_ORDER_TOKEN).block();
         Assertions.assertThat(order.status()).isEqualTo(OrderStatus.FAILED);
-        Assertions.assertThat(errorResponse.errorCode()).isEqualTo("stock.insufficient");
-        Assertions.assertThat(errorResponse.message()).isEqualTo("상품 재고가 부족합니다.");
     }
 
     @Test
@@ -553,9 +770,19 @@ public class OrderControllerTest extends AcceptedTest {
             .willReturn(Mono.just(new MemberResponse(memberId, "회원A", status)));
     }
 
+    private void mockGetMemberEmpty() {
+        BDDMockito.given(memberRequester.getMember(any()))
+            .willReturn(Mono.empty());
+    }
+
     private void mockGetDeliveryInfo(Long memberId, Long deliveryId) {
         BDDMockito.given(memberRequester.getDeliveryInfo(any(), any()))
             .willReturn(Mono.just(new DeliveryInfoResponse(deliveryId, memberId, "배송 주소")));
+    }
+
+    private void mockGetDeliveryInfoEmpty() {
+        BDDMockito.given(memberRequester.getDeliveryInfo(any(), any()))
+            .willReturn(Mono.empty());
     }
 
     private void mockGetProduct(Long productId) {
@@ -563,9 +790,19 @@ public class OrderControllerTest extends AcceptedTest {
             .willReturn(Mono.just(new ProductResponse(productId, "테스트 상품", 10000L)));
     }
 
+    private void mockGetProductEmpty() {
+        BDDMockito.given(productRequester.getProduct(any()))
+            .willReturn(Mono.empty());
+    }
+
     private void mockGetStock(Long productId) {
         BDDMockito.given(stockRequester.getStock(any()))
-            .willReturn(Mono.just(new StockResponse(productId, 10L)));
+            .willReturn(Mono.just(new StockResponse(productId, TEST_QUANTITY)));
+    }
+
+    private void mockGetStockEmpty() {
+        BDDMockito.given(stockRequester.getStock(any()))
+            .willReturn(Mono.empty());
     }
 
     private void mockDeductStock() {
@@ -575,7 +812,7 @@ public class OrderControllerTest extends AcceptedTest {
 
     private void mockDeductStockError() {
         BDDMockito.given(stockRequester.deductStock(any(), any(), any()))
-            .willReturn(Mono.error(new RuntimeException("재고 부족")));
+            .willReturn(Mono.error(new RuntimeException("재고 오류")));
     }
 
 }
