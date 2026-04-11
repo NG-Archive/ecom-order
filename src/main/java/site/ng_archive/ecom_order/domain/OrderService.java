@@ -60,6 +60,8 @@ public class OrderService {
                 prepareOrderContext(command)
                     .flatMap(ctx -> processOrderPersistence(initialOrder, ctx, command.orderItem().quantity()))
                     .flatMap(this::processStockDeduction)
+                    .onErrorResume(e -> updateOrderStatus(initialOrder.id(), OrderStatus.FAILED)
+                        .then(Mono.error(e)))
             );
     }
 
@@ -104,9 +106,7 @@ public class OrderService {
                 response.id(),
                 response.orderItem().productQuantity()
             )
-            .onErrorResume(e ->
-                updateOrderStatus(response.id(), OrderStatus.FAILED)
-                    .then(Mono.error(() -> new IllegalArgumentException("stock.insufficient"))))
+            .onErrorMap(e -> new IllegalArgumentException("stock.insufficient"))
             .then(updateOrderStatus(response.id(), OrderStatus.COMPLETED))
             .thenReturn(response.withStatus(OrderStatus.COMPLETED));
     }
