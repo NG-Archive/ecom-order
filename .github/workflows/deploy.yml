@@ -41,6 +41,22 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build --stacktrace
 
+      # tailscale 연결
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          args: --exit-node=${{secrets.TS_EXIT_NODE_IP}}
+
+      # 레지스트리 insecure 등록
+      - name: Configure Docker for Insecure Registry
+        run: |
+          sudo mkdir -p /etc/docker
+          echo '{ "insecure-registries": ["${{ secrets.REGISTRY_URL }}"] }' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+
       # Docker Login
       - name: Log in to Private Registry
         uses: docker/login-action@v4
